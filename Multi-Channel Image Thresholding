@@ -2,7 +2,7 @@
 //this macro allows you to open a multi-channel image and specify which channels you want to record threshold values from
 //you can perform thresholding on any or all of the channels in the image, up to 4 channels max. macro can be adjusted to account for more if needed.
 //macro will grab files from input, split channels, prompt you to set threshold for each channel, & record
-//once complete, values will be saved to an excel file in output folder
+//once complete, values will be saved to an .csv file in output folder
 Dialog.create("Before you start");
 Dialog.addMessage("Make sure your images are in one folder with no nested folders");
 Dialog.show();
