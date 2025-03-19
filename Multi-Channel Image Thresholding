@@ -1,0 +1,260 @@
+
+//this macro allows you to open a multi-channel image and specify which channels you want to record threshold values from
+//you can perform thresholding on any or all of the channels in the image, up to 4 channels max. macro can be adjusted to account for more if needed.
+//macro will grab files from input, split channels, prompt you to set threshold for each channel, & record
+//once complete, values will be saved to an excel file in output folder
+Dialog.create("Before you start");
+Dialog.addMessage("Make sure your images are in one folder with no nested folders");
+Dialog.show();
+
+input = getDirectory("Select folder containing images");
+File.setDefaultDir(input);
+output = getDirectory("Select folder to save file/s");
+
+Dialog.create("Get Started");
+	options = newArray("Record Threshold","Set Threshold");
+	Dialog.addChoice("Which Function?",options);
+	channels = newArray("C1","C2","C3","C4");
+	image = newArray("8-bit", "16-bit");
+	Dialog.addNumber("How many channels in image?",3,0,1,"channel/s");
+	Dialog.addChoice("Image type",image,"16-bit");
+Dialog.show;
+macros = Dialog.getChoice;
+numChan = Dialog.getNumber();
+images = Dialog.getChoice();
+
+
+Dialog.create("Which channels for thresholding?");
+	for(n=0;n<numChan;n++){
+	Dialog.addCheckbox(channels[n], 1);
+	}
+Dialog.show();
+//tchan collects all channels to assist in the macro
+//chanArray collects only the ones to be measured
+tchanArray=newArray();
+chanArray = newArray();
+	for(n=0;n<numChan;n++) {
+		tchan=Dialog.getCheckbox();
+		tchanArray=Array.concat(tchanArray,tchan);
+		if (tchan == 1){
+			chanArray=Array.concat(chanArray,channels[n]);}
+	}
+
+num=lengthOf(chanArray);
+
+
+if (macros == "Record Threshold"){
+	Dialog.create("Record Threshold");
+	for(n=0;n<num;n++) {
+	Dialog.addMessage(chanArray[n]);
+	Dialog.addCheckbox("Auto Threshold", 0);
+	Dialog.addCheckbox("Save mask", 0);
+	Dialog.addCheckbox("Save ROI", 0);
+	Dialog.addCheckbox("Despeckle", 0);
+	}
+Dialog.show;
+autoArray = newArray();
+savettArray = newArray();
+saverrArray = newArray();
+ttvalueArray = newArray();
+dspeckleArray = newArray();
+
+print("\\Clear");
+roiManager("reset");
+resulttitle=String.join(chanArray, "	");
+print("File	"+ resulttitle);
+	for(n=0;n<numChan;n++) {
+		if(tchanArray[n] == false){
+			autoArray=Array.concat(autoArray,0);
+			savettArray=Array.concat(savettArray,0);
+			saverrArray=Array.concat(saverrArray,0);
+			ttvalueArray = Array.concat(ttvalueArray,0);
+			dspeckleArray = Array.concat(dspeckleArray,0);
+			}
+		if(tchanArray[n] == true){
+			auto=Dialog.getCheckbox();
+			savett=Dialog.getCheckbox();
+			saverr=Dialog.getCheckbox();
+			dspeck=Dialog.getCheckbox();
+				if(auto == true){
+				autoArray=Array.concat(autoArray,1);
+				}
+				if(auto == false){
+				autoArray=Array.concat(autoArray,0);
+				}
+				if (savett == true){
+				savettArray=Array.concat(savettArray,1);
+				maskdir=output+channels[n]+" Mask";
+				File.makeDirectory(maskdir);
+				}
+				if(savett == false){
+				savettArray=Array.concat(savettArray,0);
+				}
+				if (saverr == true){
+				saverrArray=Array.concat(saverrArray,1);
+				ROIdir=output+channels[n]+" ROIs";
+				File.makeDirectory(ROIdir);
+				}
+				if(saverr == false){
+				saverrArray=Array.concat(saverrArray,0);
+				}
+				if(dspeck == true){
+				dspeckleArray = Array.concat(dspeckleArray,1);
+				}
+				if(dspeck == false){
+				dspeckleArray = Array.concat(dspeckleArray,0);
+				}
+		}
+	}
+
+	processFolder(input);
+	selectWindow("Log");
+	saveAs("Text", output+"Thresholding.csv");
+}
+
+if (macros == "Set Threshold") {
+	Dialog.create("Channel Thresholding");
+		for(n=0;n<num;n++){
+			Dialog.addMessage(chanArray[n]);
+			Dialog.addNumber("Threshold:", 1000);
+			Dialog.addCheckbox("Save ROI", 0);
+			Dialog.addCheckbox("Despeckle", 0);
+			//Despeckle will reduce the noise of the image 
+		
+			}
+	Dialog.show();
+		savetArray = newArray();
+		saverArray = newArray();
+		tvalueArray = newArray();
+		speckleArray = newArray();
+	for(n=0;n<numChan;n++) {
+		if(tchanArray[n] == false){
+			savetArray=Array.concat(savetArray,0);
+			saverArray=Array.concat(saverArray,0);
+			tvalueArray = Array.concat(tvalueArray,0);
+			speckleArray = Array.concat(speckleArray,0);
+			}
+		if(tchanArray[n] == true){
+			tvalue = Dialog.getNumber();
+			tvalueArray = Array.concat(tvalueArray,tvalue);
+			saver=Dialog.getCheckbox();
+			savetArray=Array.concat(savetArray,1);
+			speck=Dialog.getCheckbox();
+				maskdir=output+channels[n]+" T"+tvalue+" Masks";
+				File.makeDirectory(maskdir);
+				if (saver == true){
+				saverArray=Array.concat(saverArray,1);
+				ROIdir=output+channels[n]+" T"+tvalue+" ROIs";
+				File.makeDirectory(ROIdir);
+				}
+				if(saver == false){
+				saverArray=Array.concat(saverArray,0);
+				}
+				if(speck == true){
+				speckleArray = Array.concat(speckleArray,1);
+				}
+				if(speck == false){
+				speckleArray = Array.concat(speckleArray,0);
+				}
+		}
+	}
+	processFolder(input);
+}
+
+function processFolder(input) {
+list = getFileList(input);
+list = Array.sort(list);
+for (i = 0; i < list.length; i++) {
+	if(File.isDirectory(input + File.separator + list[i]))
+		processFolder(input + File.separator + list[i]);
+	if(endsWith(list[i],".tif"))
+		processFile(input, output, list[i]);
+ }
+}
+
+
+function processFile(input, output, file) {
+	if(images == "8-bit"){
+	a=255;}
+	if(images == "16-bit"){
+	a=65535;}
+	open(input + file);
+	title=getTitle();
+	run("Split Channels");
+	if (macros == "Record Threshold"){
+		resultsArray=newArray();
+ 		x=0;
+		for(n=0;n<numChan;n++){
+		selectImage(channels[n]+"-"+title);
+		rename(title);
+		if(dspeckleArray[n] == true){
+		run("Despeckle");	
+		}
+		if(tchanArray[n] ==false){
+			close();}
+		else{
+			run("Grays");
+			run("Enhance Contrast", "saturated=0.35");
+			setAutoThreshold("Default dark");
+			wait(1000);
+			run("Threshold...");
+			if(autoArray[n] == false){
+			waitForUser("set and record threshold");
+			}
+			getThreshold(x,a);
+			if( x == 0){
+				close();}
+			else{
+			resultsArray=Array.concat(resultsArray,x);
+			selectImage(title);			
+			if ( savettArray[n] == true){
+			setThreshold(x,a);
+			wait(1000);
+			run("Convert to Mask");
+			saveAs("Tiff", maskdir+File.separator+channels[n]+File.separator+file+" T"+x);
+			}
+			if (saverrArray[n] == true){
+				run("Create Selection");
+				roiManager("Add");
+				roiManager("Select", 0);
+				roiManager("Rename", file);
+				roiManager("save", ROIdir+File.separator+channels[n]+File.separator+file+" T"+x+"_ROI.zip")
+				roiManager("Delete");
+			}
+			close();
+			}		
+	}
+		}
+	results=String.join(resultsArray, "	");
+	print(title+"	" + results);
+	}
+	if (macros == "Set Threshold"){
+	for(n=0;n<numChan;n++){
+		selectImage(channels[n]+"-"+file);
+		title=getTitle();
+		if(speckleArray[n] == true){
+		run("Despeckle");	
+		}
+		if(tchanArray[n] ==false){
+			close();}
+	else{
+
+	run("Select All");
+	setThreshold(tvalueArray[n], a);
+	wait(1000);
+	run("Convert to Mask");
+	rename(output+file+"_mask");
+	saveAs("TIFF", maskdir+File.separator+channels[n]+" T"+tvalueArray[n]+File.separator+file+" T"+tvalueArray[n]);
+	if(saverArray[n]==1) {
+	run("Create Selection");
+	roiManager("Add");
+	roiManager("Select", 0);
+	roiManager("Rename", file);
+	roiManager("save", ROIdir+File.separator+channels[n]+" T"+tvalueArray[n]+File.separator+file+" T"+tvalueArray[n]+"_ROI.zip")
+	roiManager("Delete");
+	}
+	close();
+	}
+}
+	}
+}
